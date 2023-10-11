@@ -9,7 +9,9 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 find_package(Boost REQUIRED)
 
 add_subdirectory(http)
+add_subdirectory(database)
 
 add_executable(executable main.cpp)
-target_link_libraries(executable boost::boost Server ) 
+target_link_libraries(executable boost::boost Server Database)
 
+# set_property(TARGET executable PROPERTY CXX_STANDARD 20)

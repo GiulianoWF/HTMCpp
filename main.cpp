@@ -2,6 +2,8 @@
 #include "server_handler.h"
 
 #include <boost/beast/core.hpp>
+#include <database_connection.hpp>
+#include <issues.hpp>
 
 #include <sstream>
 #include <iostream>
@@ -11,31 +13,36 @@ class HtmxHandler : public ServerHandler
     public:
         virtual void HandleHttpRequest (http::request<http::string_body>&& req , std::function<void(http::response<http::string_body>)>&& sendCallback)
         {
-            std::stringstream ss;
+            std::wstringstream ss;
             if (req.target() == "/") {
                 ss << R"(
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Flask HTMX Example</title>
-    <!-- Include HTMX library -->
-    <script src="https://unpkg.com/htmx.org@1.6.1"></script>
-</head>
-<body>
-    <div id="content">
-        <button hx-get="/route2"
-                hx-target="#content"
-                hx-swap="outerHTML">
-            Load Content
-        </button>
-    </div>
-</body>
-</html>
+                    <!DOCTYPE html>
+                    <html lang="en">
+                    <head>
+                        <meta charset="UTF-8">
+                        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                        <title>Flask HTMX Example</title>
+                        <!-- Include HTMX library -->
+                        <script src="https://unpkg.com/htmx.org@1.6.1"></script>
+                    </head>
+                    <body>
+                        <div id="content">
+                            <button hx-get="/route2"
+                                    hx-target="#content"
+                                    hx-swap="outerHTML">
+                                Load Content
+                            </button>
+                        </div>
+                    </body>
+                    </html>
                 )";
             } else if (req.target() == "/route2") {
-                ss << "<div>Hello!</div>";
+                std::vector<Database::Issues> issues = Database::GetAllIssues();
+                if (issues.empty()) {
+                    ss << "<div>Hello!</div>";
+                } else {
+                    ss << "<div>" << issues.at(0).description << "</div>";
+                }
             } else {
                 ss << "error";
             }
@@ -48,7 +55,16 @@ class HtmxHandler : public ServerHandler
             //res.set(http::field::server, "[ServerHandler]");
             res.set(http::field::content_type, "text/html");
             res.keep_alive(false);
-            res.body() = ss.str();
+
+            //=================TODO proper wstring support plz=============
+            auto wide = ss.str();
+            std::string str;
+            std::transform(wide.begin(), wide.end(), std::back_inserter(str), [] (wchar_t c) {
+                return (char)c;
+            });
+            res.body() = str;
+            //==============================================================
+
             res.prepare_payload();
 
             sendCallback(res);
