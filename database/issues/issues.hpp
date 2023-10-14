@@ -8,7 +8,7 @@ namespace Database
     struct Issues
     {
         int64_t creation_timestamp;
-        std::wstring description;
+        std::string description;
         int64_t colaborator_id;
         int64_t state;
     };

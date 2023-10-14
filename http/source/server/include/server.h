@@ -27,3 +27,5 @@ public:
     // Start accepting incoming connections
     void Run();
 };
+
+void RunServer(int argc, char* argv[], std::shared_ptr<ServerHandler> handler);

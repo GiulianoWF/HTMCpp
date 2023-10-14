@@ -1,5 +1,11 @@
 #include "server_handler.h"
 #include "server_websocket_session.h"
+#include <fstream>
+
+auto GetServerHandler() -> HtmxHandler& {
+    static HtmxHandler token_;
+    return token_;
+}
 
 ServerHandler::ServerHandler() {
 }
@@ -62,4 +68,48 @@ void ServerHandler::Broadcast(std::string message) {
             sessionsPtr->Send(ss);
         }
     }
+}
+
+void HtmxHandler::HandleHttpRequest (http::request<http::string_body>&& req , std::function<void(http::response<http::string_body>)>&& sendCallback)
+{
+    std::stringstream ss;
+    ss << this->mRoutesExecutors[req.target()]();          
+    // std::cout << req.method_string() << std::endl;
+    http::response<http::string_body> res{http::status::ok, req.version()};
+    //res.set(http::field::server, "[ServerHandler]");
+    res.set(http::field::content_type, "text/html");
+    res.keep_alive(false);
+    res.body() = ss.str();
+    res.prepare_payload();
+
+    sendCallback(res);
+}
+
+void HtmxHandler::AppendHandler (std::string&& route, std::function<std::string const()>&& handler) {
+    this->mRoutesExecutors[route] = handler;
+}
+
+void HtmxHandler::AppendFile (std::string&& route, std::string&& filePath) {
+    const std::string& content = this->ReadFileToString(std::move(filePath));
+    if (content.empty()) {
+        throw "File not found";
+    }
+
+    this->mRoutesExecutors[route] = [content]() -> std::string
+    {
+        return content;
+    };
+}
+
+auto HtmxHandler::ReadFileToString(std::string&& filename) ->std::string {
+    std::ifstream ifs("resources/" + filename);
+
+    if (!ifs) {
+        throw "Resource not found";
+    }
+
+    std::stringstream ss;
+    ss << ifs.rdbuf();
+
+    return ss.str();
 }
