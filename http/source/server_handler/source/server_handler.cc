@@ -1,6 +1,12 @@
 #include "server_handler.h"
 #include "server_websocket_session.h"
+#include <complex>
 #include <fstream>
+#include <memory>
+#include <queue>
+#include <set>
+
+constexpr size_t maxVariableLength = 100;
 
 auto GetServerHandler() -> HtmxHandler& {
     static HtmxHandler token_;
@@ -70,28 +76,44 @@ void ServerHandler::Broadcast(std::string message) {
     }
 }
 
+bool HtmxHandler::Route::operator==(const Route& rhs) const
+{
+    return this->mPath == rhs.mPath && this->mVerb == rhs.mVerb;
+}
+
+HtmxHandler::HtmxHandler()
+    :ServerHandler()
+{
+    this->mRoutesRoot = std::unique_ptr<TrieNode>(new TrieNode{
+        .sequence = "",
+        .nextSequences = {},
+        .nextSequenceArgEntry = nullptr,
+        .route = nullptr
+    });
+}
+
 void HtmxHandler::HandleHttpRequest (http::request<http::string_body>&& req , std::function<void(http::response<http::string_body>)>&& sendCallback)
 {
-    const auto routeString = req.target();
+    auto [pRoute, parsedArgs] = this->ResolveRoute({req.target(), req.method()});
 
-    const auto& routeIt = this->mRoutes.find(routeString);
-
-    if(routeIt == this->mRoutes.end()) {
+    if(pRoute == nullptr) {
+        http::response<http::string_body> res{http::status::not_found, req.version()};
+        res.prepare_payload();
+        sendCallback(res);
         return;
     }
+    auto method = req.method();
 
-    const auto& route = routeIt->second;
+    const std::string&& routeResponse = pRoute->executor(std::move(parsedArgs));
 
     std::stringstream ss;
-    ss << route.executor();
-    // std::cout << req.method_string() << std::endl;
-    //res.set(http::field::server, "[ServerHandler]");
+    ss << std::move(routeResponse);
 
     http::response<http::string_body> res{http::status::ok, req.version()};
-    res.set(http::field::content_type, route.contentType);
+    res.set(http::field::content_type,  pRoute->contentType);
 
-    if(route.modifier.has_value()) {
-        route.modifier.value()(res);
+    if (pRoute->modifier.has_value()) {
+        pRoute->modifier.value()(res);
     } else {
         res.keep_alive(false);
     }
@@ -102,17 +124,17 @@ void HtmxHandler::HandleHttpRequest (http::request<http::string_body>&& req , st
     sendCallback(res);
 }
 
-void HtmxHandler::AppendHandler (std::string&& route,
-                                 std::function<std::string const()>&& handler,
+void HtmxHandler::AppendHandler (Route&& route,
+                                 std::function<std::string const(std::vector<std::string>&&)>&& handler,
                                  std::string&& contentType) {
-    this->mRoutes[route] = {
+    this->RegisterRoute(std::move(route),{
         .executor = handler,
         .contentType = contentType,
         .modifier = std::nullopt
-    };
+    });
 }
 
-void HtmxHandler::AppendFile (std::string&& route,
+void HtmxHandler::AppendFile (Route&& route,
                               std::string&& filePath,
                               std::string&& contentType) {
     const std::string& content = this->ReadFileToString(std::move(filePath));
@@ -120,26 +142,60 @@ void HtmxHandler::AppendFile (std::string&& route,
         throw "File not found";
     }
 
-    const auto handler = [content]() -> std::string
+    const auto handler = [content](std::vector<std::string>&&) -> std::string
     {
         return content;
     };
 
-    this->mRoutes[route] = {
+    this->RegisterRoute(std::move(route),{
         .executor = handler,
         .contentType = contentType,
         .modifier = std::nullopt
-    };
+    });
 }
 
-void HtmxHandler::AppendResponseModifiers (std::string&& route, std::function<void(http::response<http::string_body>&)> modifier) {
-    if(const auto modifier = this->mRoutes.find(route);
-        modifier == this->mRoutes.end()
-    ) {
+void HtmxHandler::AppendResponseModifiers (Route&& route, std::function<void(http::response<http::string_body>&)> modifier) {
+    auto [pRoute, parsedArgs] = this->ResolveRoute(std::move(route));
+    if(pRoute == nullptr) {
         return;
     }
+    pRoute->modifier = modifier;
+}
 
-    this->mRoutes[route].modifier = modifier;
+auto HtmxHandler::TokenizeRoute(Route&& route) ->std::queue<Route> {
+    std::string const& routeString = route.mPath;
+
+    size_t pos_start = 0, pos_end, delim_len = 1;
+    std::string token;
+    std::queue<Route> res;
+
+    while ((pos_end = routeString.find("/", pos_start)) != std::string::npos) {
+        token = routeString.substr(pos_start, pos_end - pos_start);
+        pos_start = pos_end + delim_len;
+
+        if(token == "") {
+            continue;
+        }
+
+        res.push({token, route.mVerb});
+    }
+
+    auto lastString = routeString.substr(pos_start);
+    if (lastString != "") {
+        res.push({lastString, route.mVerb});
+    }
+
+    return res;
+}
+
+void HtmxHandler::RegisterRoute(Route&& path, RouteEntry&& route) {
+    this->Insert(this->mRoutesRoot.get(), std::move(path), route);
+}
+
+auto HtmxHandler::ResolveRoute(Route&& path) ->std::tuple<RouteEntry*, std::vector<std::string>> {
+    auto [found, args, foundRoute] = this->Transverse(this->mRoutesRoot.get(), std::move(path));
+
+    return {foundRoute, args};
 }
 
 auto HtmxHandler::ReadFileToString(std::string&& filename) ->std::string {
@@ -153,4 +209,154 @@ auto HtmxHandler::ReadFileToString(std::string&& filename) ->std::string {
     ss << ifs.rdbuf();
 
     return ss.str();
+}
+
+auto HtmxHandler::Transverse(TrieNode* root, Route&& route) ->std::tuple<bool, std::vector<std::string>, RouteEntry*> {
+    std::vector<std::string> parsedArgs;
+    
+    std::queue<Route> tokens = this->TokenizeRoute(std::move(route));
+
+    if(tokens.empty()) {
+        if(root->route == nullptr) {
+            return {false, {}, nullptr};
+        }
+
+        return {true, {}, root->route.get()};
+    }
+
+    auto currentToken = tokens.front();
+
+    TrieNode* currentNode = root;
+
+    LOOP_ROUTES:
+    while(!tokens.empty()) {
+        for(auto& sequence : currentNode->nextSequences) {
+            if (sequence.first == currentToken) {
+                currentNode = sequence.second.get();
+                tokens.pop();
+                if(!tokens.empty()) {
+                    currentToken = tokens.front();
+                }
+                goto LOOP_ROUTES;
+            }
+        }
+
+        if (currentNode->nextSequenceArgEntry != nullptr) {
+            parsedArgs.push_back(currentToken.mPath);
+            currentNode = currentNode->nextSequenceArgEntry.get();
+            tokens.pop();
+            if(tokens.empty()) {
+               break; 
+            }
+            currentToken = tokens.front();
+            continue;
+        }
+
+        return {false, {}, nullptr};
+    }
+
+    return {true, parsedArgs, currentNode->route.get()};
+}
+
+auto HtmxHandler::Insert(TrieNode* root, Route&& route, RouteEntry routeEntry) ->bool {
+    std::queue<Route> tokens = this->TokenizeRoute(std::move(route));
+
+    if(tokens.empty()) {
+        auto heapRoute = std::unique_ptr<RouteEntry>(new RouteEntry);
+        *(heapRoute.get()) = routeEntry;
+        root->route = std::move(heapRoute);
+        return true;
+    }
+
+    auto currentToken = tokens.front();
+
+    TrieNode* currentNode = root;
+
+    LOOP_ROUTES:
+    while(!tokens.empty()) {
+        for(auto& sequence : currentNode->nextSequences) {
+            if (sequence.first == currentToken) {
+                currentNode = sequence.second.get();
+                tokens.pop();
+                currentToken = tokens.front();
+                goto LOOP_ROUTES;
+            }
+        }
+
+        if (currentNode->nextSequenceArgEntry != nullptr
+            && currentToken.mPath == "$") {
+            currentNode = currentNode->nextSequenceArgEntry.get();
+            tokens.pop();
+            currentToken = tokens.front();
+            continue;
+        }
+
+        this->CreateRouteNodeChain(currentNode, std::move(tokens), routeEntry);
+        return true;
+    }
+
+    // Route already exist
+    return false;
+}
+
+auto HtmxHandler::CreateRouteNodeChain(TrieNode* root, std::queue<Route>&& routeTokens, RouteEntry routeEntry) ->bool {
+    if (routeTokens.empty()) {
+        return false;
+    }
+
+    auto currentToken = routeTokens.front();
+    routeTokens.pop();
+
+    TrieNode* currentNode = root;
+    TrieNode* nextNode = currentNode;
+
+    while(routeTokens.size() >= 1) {
+        auto blankNode = std::unique_ptr<TrieNode>(new TrieNode{
+            "",
+            {},
+            {},
+            {}
+        });
+
+        nextNode = blankNode.get();
+
+        if (currentToken.mPath == "$") {
+            currentNode->nextSequenceArgEntry = std::move(blankNode);
+        } else {
+            currentNode->nextSequences.push_back({currentToken, std::move(blankNode)});
+        }
+
+        currentNode = nextNode;
+
+        currentToken = routeTokens.front();
+        routeTokens.pop();
+    }
+
+    this->CreateRouteNode(currentNode, std::move(currentToken), routeEntry);
+
+    return true;
+}
+
+auto HtmxHandler::CreateRouteNode(TrieNode* root, Route&& routeToken, RouteEntry routeEntry) ->bool {
+    if (routeToken.mPath.empty()) {
+        return false;
+    }
+
+    RouteEntry* routeCopy = new RouteEntry;
+    *routeCopy = routeEntry;
+
+    auto node = std::unique_ptr<TrieNode>(new TrieNode{
+        "",
+        std::vector<std::pair<Route, std::unique_ptr<TrieNode>>>{},
+        std::unique_ptr<TrieNode>(nullptr),
+        std::unique_ptr<RouteEntry>(routeCopy)
+    });
+
+    if (routeToken.mPath == "$") {
+        root->nextSequenceArgEntry = std::move(node);
+    } else {
+        root->nextSequences.push_back({routeToken, std::move(node)});
+    }
+
+    return true;
 }

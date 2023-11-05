@@ -6,7 +6,7 @@
 body{
     font-family: Helvetica;
     -webkit-font-smoothing: antialiased;
-    background: rgb(2, 53, 109);
+    background: rgb(137, 173, 212);
 }
 h2{
     text-align: center;
@@ -78,6 +78,11 @@ h2{
 
 .fl-table tr:nth-child(even) {
     background: #F8F8F8;
+}
+
+.fl-table tr.htmx-swapping td {
+    opacity: 0;
+    transition: opacity 0.5s ease-out;
 }
 
 /* Responsive */

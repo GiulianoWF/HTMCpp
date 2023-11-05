@@ -6,13 +6,15 @@
 std::string GetIssueComponent(Database::Issue issue)
 {
     return fmt::format(R"(
-        <tr>
-            <td>{issue_id}</td>
-            <td>{colaborator_id}</td>
-            <td>{issue_name}</td>
-            <td> <button type="button">Delete issue {issue_id}</button> </td>
-        </tr>
-        )",
+<tr>
+    <td>{issue_id}</td>
+    <td>{colaborator_id}</td>
+    <td>{issue_name}</td>
+    <td><button class="btn btn-danger" hx-delete="/issues/{issue_id}">
+        Delete
+    </button></td>
+</tr>
+)",
         fmt::arg("issue_id", issue.issue_id),
         fmt::arg("issue_name", issue.description),
         fmt::arg("colaborator_id", issue.colaborator_id),
@@ -40,7 +42,7 @@ std::string GetIssueListComponent()
             <th>{header4}</th>
         </tr>
         </thead>
-        <tbody>
+        <tbody hx-confirm="Are you sure?" hx-target="closest tr" hx-swap="outerHTML swap:0.6s">
             {issueComponents}
         <tbody>
     </table>
