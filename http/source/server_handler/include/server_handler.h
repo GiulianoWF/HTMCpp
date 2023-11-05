@@ -28,14 +28,21 @@ class ServerHandler {
 
 class HtmxHandler : public ServerHandler
 {
-    std::unordered_map<std::string, std::function<std::string const()>> mRoutesExecutors;
+    struct RouteEntry {
+        std::function<std::string const()> executor;
+        std::string contentType;
+        std::optional<std::function<void(http::response<http::string_body>&)>> modifier;
+    };
+    std::unordered_map<std::string, RouteEntry> mRoutes;
     public:
         virtual void HandleHttpRequest (http::request<http::string_body>&& req ,
                                         std::function<void(http::response<http::string_body>)>&& sendCallback);
 
-        void AppendHandler (std::string&& route, std::function<std::string const()>&& handler);
+        void AppendHandler (std::string&& route, std::function<std::string const()>&& handler, std::string&& contentType="text/html");
 
-        void AppendFile (std::string&& route, std::string&& filePath);
+        void AppendFile (std::string&& route, std::string&& filePath, std::string&& contentType="text/html");
+
+        void AppendResponseModifiers (std::string&& route, std::function<void(http::response<http::string_body>&)>);
 
     private:
         auto ReadFileToString(std::string&& filename) ->std::string;

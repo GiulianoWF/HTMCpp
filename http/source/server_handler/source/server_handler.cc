@@ -72,33 +72,74 @@ void ServerHandler::Broadcast(std::string message) {
 
 void HtmxHandler::HandleHttpRequest (http::request<http::string_body>&& req , std::function<void(http::response<http::string_body>)>&& sendCallback)
 {
+    const auto routeString = req.target();
+
+    const auto& routeIt = this->mRoutes.find(routeString);
+
+    if(routeIt == this->mRoutes.end()) {
+        return;
+    }
+
+    const auto& route = routeIt->second;
+
     std::stringstream ss;
-    ss << this->mRoutesExecutors[req.target()]();          
+    ss << route.executor();
     // std::cout << req.method_string() << std::endl;
-    http::response<http::string_body> res{http::status::ok, req.version()};
     //res.set(http::field::server, "[ServerHandler]");
-    res.set(http::field::content_type, "text/html");
-    res.keep_alive(false);
+
+    http::response<http::string_body> res{http::status::ok, req.version()};
+    res.set(http::field::content_type, route.contentType);
+
+    if(route.modifier.has_value()) {
+        route.modifier.value()(res);
+    } else {
+        res.keep_alive(false);
+    }
+
     res.body() = ss.str();
     res.prepare_payload();
 
     sendCallback(res);
 }
 
-void HtmxHandler::AppendHandler (std::string&& route, std::function<std::string const()>&& handler) {
-    this->mRoutesExecutors[route] = handler;
+void HtmxHandler::AppendHandler (std::string&& route,
+                                 std::function<std::string const()>&& handler,
+                                 std::string&& contentType) {
+    this->mRoutes[route] = {
+        .executor = handler,
+        .contentType = contentType,
+        .modifier = std::nullopt
+    };
 }
 
-void HtmxHandler::AppendFile (std::string&& route, std::string&& filePath) {
+void HtmxHandler::AppendFile (std::string&& route,
+                              std::string&& filePath,
+                              std::string&& contentType) {
     const std::string& content = this->ReadFileToString(std::move(filePath));
     if (content.empty()) {
         throw "File not found";
     }
 
-    this->mRoutesExecutors[route] = [content]() -> std::string
+    const auto handler = [content]() -> std::string
     {
         return content;
     };
+
+    this->mRoutes[route] = {
+        .executor = handler,
+        .contentType = contentType,
+        .modifier = std::nullopt
+    };
+}
+
+void HtmxHandler::AppendResponseModifiers (std::string&& route, std::function<void(http::response<http::string_body>&)> modifier) {
+    if(const auto modifier = this->mRoutes.find(route);
+        modifier == this->mRoutes.end()
+    ) {
+        return;
+    }
+
+    this->mRoutes[route].modifier = modifier;
 }
 
 auto HtmxHandler::ReadFileToString(std::string&& filename) ->std::string {

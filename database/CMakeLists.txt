@@ -6,7 +6,7 @@ set(CMAKE_CXX_STANDARD 20)
 find_package(SQLite3 REQUIRED)
 
 add_library(Database SHARED 
-    database_connection/database_connection.cc
+    database_connection/db_database_connection.cc
     # Other source files will be appended below
 )
 
@@ -24,7 +24,7 @@ file(GLOB children RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_SOURCE_D
 set(subdir_sources "")
 foreach(child ${children})
     if(IS_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/${child} AND NOT child MATCHES "database_connection")
-        list(APPEND subdir_sources ${child}/${child}.cc)
+        list(APPEND subdir_sources "${child}/db_${child}.cc")
         target_include_directories(Database PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/${child})
     endif()
 endforeach()

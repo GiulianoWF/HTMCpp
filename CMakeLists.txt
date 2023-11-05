@@ -11,8 +11,9 @@ find_package(fmt REQUIRED)
 
 add_subdirectory(http)
 add_subdirectory(database)
+add_subdirectory(views)
 
 add_executable(executable main.cpp)
-target_link_libraries(executable boost::boost fmt::fmt Server Database)
+target_link_libraries(executable boost::boost fmt::fmt Server Database Views)
 
 # set_property(TARGET executable PROPERTY CXX_STANDARD 20)
