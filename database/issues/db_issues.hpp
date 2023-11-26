@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstdint>
 #include <string>
 #include <vector>
 
@@ -16,5 +17,6 @@ namespace Database
 
     auto GetAllIssues() ->std::vector<Issue>;
     void SaveIssue(std::vector<Issue> const&);
+    void DeleteIssue(int64_t issue_id);
 }
 

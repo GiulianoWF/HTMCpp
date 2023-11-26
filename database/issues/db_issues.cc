@@ -1,5 +1,6 @@
 #include <db_issues.hpp>
 #include <db_database_connection.hpp>
+#include <fmt/core.h>
 
 namespace Database
 {
@@ -22,8 +23,28 @@ namespace Database
         return issues;
     }
 
-    void SaveIssue(std::vector<Issue> const&) {
+    void SaveIssue(std::vector<Issue> const& issues) {
         DatabaseConnection& database = GetDatabase();
-        database.ExecuteQuery("INSERT INTO ISSUES() VALUES()");
+        for(Issue const& issue : issues) {
+            database.ExecuteQuery(fmt::format(R"(
+                INSERT INTO ISSUES(creation_timestamp, issue_id, description, colaborator_id, state) VALUES(
+                {creation_timestamp},
+                {issue_id},
+                {description},
+                {colaborator_id},
+                {state}))",
+
+            fmt::arg("creation_timestamp", "2023-01-01"),
+            fmt::arg("issue_id", issue.issue_id),
+            fmt::arg("description", issue.description),
+            fmt::arg("colaborator_id", issue.colaborator_id),
+            fmt::arg("state", issue.state)));
+        }
+    }
+
+
+    void DeleteIssue(int64_t issue_id) {
+        DatabaseConnection& database = GetDatabase();
+        database.ExecuteDeleteQuery(fmt::format("DELETE FROM ISSUES WHERE issue_id = {};", issue_id));
     }
 }

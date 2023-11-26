@@ -1,7 +1,27 @@
-#include <db_issues.hpp>
+#include <view_issues.hpp>
 
 #include <fmt/core.h>
 #include <sstream>
+
+
+std::string GetIssueInputRowComponent()
+{
+    return fmt::format(R"(
+<tr>
+    <td><input type="text" name="issue_id" placeholder="Issue ID" required /></td>
+    <td><input type="text" name="colaborator_id" placeholder="Colaborator ID" required /></td>
+    <td><input type="text" name="description" placeholder="Description" required /></td>
+    <td>
+        <button type="button" 
+                hx-post="/create-issue" 
+                hx-include="closest tr"
+                hx-target="closest tr" 
+                hx-swap="outerHTML swap:0.6s">Create Issue
+        </button>
+    </td>
+</tr>
+)");
+}
 
 std::string GetIssueComponent(Database::Issue issue)
 {
@@ -27,6 +47,9 @@ std::string GetIssueListComponent()
     std::vector<Database::Issue> issues = Database::GetAllIssues();
     
     std::stringstream ss;
+
+    ss << GetIssueInputRowComponent();
+    
     for (Database::Issue issue: issues) {
         ss << GetIssueComponent(issue);
     }

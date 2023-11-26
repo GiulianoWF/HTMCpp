@@ -21,6 +21,8 @@ void RunServer(int argc, char* argv[], std::shared_ptr<ServerHandler> handler) {
         port = static_cast<unsigned short>(std::atoi(argv[2]));
     }
 
+    std::cout << "Running server in " << address.to_string() << ":" << port << std::endl;
+
     boost::asio::io_context ioContext;
     auto server = std::make_shared<Server>(ioContext, boost::asio::ip::tcp::endpoint{address, port}, handler);
     server->Run();

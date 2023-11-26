@@ -1,0 +1,41 @@
+.fl-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 0;
+    padding: 0;
+    table-layout: auto; /* Ensure that the table adjusts to content */
+    background-color: #fff; /* Background color for the table */
+}
+
+.fl-table th,
+.fl-table td {
+    padding: 12px 15px; /* Padding inside the cells */
+    text-align: left;
+    border-bottom: 1px solid #ddd; /* Light gray border for the cells */
+}
+
+.fl-table th {
+    background-color: #f4f4f4; /* Light gray background for headers */
+    color: #333; /* Dark text color for headers */
+    font-weight: bold;
+    position: sticky;
+    top: 0; /* Keep the header on top during scroll */
+    z-index: 10; /* Make sure the header is above the body content */
+}
+
+.fl-table tr:nth-child(even) {
+    background-color: #f8f8f8; /* Lighter gray background for even rows */
+}
+
+.fl-table tr:hover {
+    background-color: #eaeaea; /* Color for row hover effect */
+}
+
+/* Specific styles for the status column */
+.fl-table .status {
+    text-transform: uppercase;
+    font-weight: bold;
+    text-align: center;
+    border-radius: 4px;
+    cursor: pointer;
+}

@@ -31,6 +31,13 @@ auto DatabaseConnection::ExecuteQuery(std::string const& s) ->LiveQuery {
     }
 
     return LiveQuery(this->db, stmt, zErrMsg);
+
+    
+};
+
+void DatabaseConnection::ExecuteDeleteQuery(std::string const& s) {
+    auto result = this->ExecuteQuery(s);
+    result.LoadRow();
 };
 
 LiveQuery::LiveQuery(sqlite3 *db, sqlite3_stmt *stmt, char *zErrMsg) {

@@ -7,6 +7,8 @@
 #include <optional>
 #include <iostream>
 
+#include <pqxx/pqxx>
+
 using namespace std::placeholders;
 
 namespace Database {
@@ -41,7 +43,6 @@ namespace Database {
             auto GetString() ->std::string;
     };
 
-
     class DatabaseConnection {
         sqlite3 *db;
         int returnCode = SQLITE_OK;
@@ -55,6 +56,7 @@ namespace Database {
             ~DatabaseConnection();
 
             auto ExecuteQuery(std::string const& s) -> LiveQuery;
+            void ExecuteDeleteQuery(std::string const& s);
     };
 
     auto GetDatabase() ->DatabaseConnection&;
