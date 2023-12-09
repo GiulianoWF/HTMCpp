@@ -6,6 +6,12 @@
 #include <queue>
 #include <set>
 
+#include <string>
+#include <unordered_map>
+#include <sstream>
+#include <cctype>
+#include <iomanip>
+
 constexpr size_t maxVariableLength = 100;
 
 auto GetServerHandler() -> HtmxHandler& {
@@ -92,6 +98,43 @@ HtmxHandler::HtmxHandler()
     });
 }
 
+std::string urlDecode(const std::string& str) {
+    std::string result;
+    char ch;
+    int i, j;
+
+    for (i = 0; i < str.length(); i++) {
+        if (int(str[i]) == 37) {
+            sscanf(str.substr(i + 1, 2).c_str(), "%x", &j);
+            ch = static_cast<char>(j);
+            result += ch;
+            i = i + 2;
+        } else {
+            result += str[i];
+        }
+    }
+
+    return result;
+}
+
+std::unordered_map<std::string, std::string> parseQueryString(const std::string& query) {
+    // TODO: safaty, sanityze, etc :(
+    std::unordered_map<std::string, std::string> data;
+    std::istringstream queryStream(query);
+    std::string pair;
+
+    while (std::getline(queryStream, pair, '&')) {
+        auto delimiterPos = pair.find('=');
+        if (delimiterPos != std::string::npos) {
+            std::string key = pair.substr(0, delimiterPos);
+            std::string value = urlDecode(pair.substr(delimiterPos + 1));
+            data.insert(std::make_pair(key, value));
+        }
+    }
+
+    return data;
+}
+
 void HtmxHandler::HandleHttpRequest (http::request<http::string_body>&& req , std::function<void(http::response<http::string_body>)>&& sendCallback)
 {
     auto [pRoute, parsedArgs] = this->ResolveRoute({req.target(), req.method()});
@@ -104,7 +147,7 @@ void HtmxHandler::HandleHttpRequest (http::request<http::string_body>&& req , st
     }
     auto method = req.method();
 
-    const std::string&& routeResponse = pRoute->executor(std::move(parsedArgs));
+    const std::string&& routeResponse = pRoute->executor(std::move(parsedArgs), parseQueryString(req.body()));
 
     std::stringstream ss;
     ss << std::move(routeResponse);
@@ -125,7 +168,7 @@ void HtmxHandler::HandleHttpRequest (http::request<http::string_body>&& req , st
 }
 
 void HtmxHandler::AppendHandler (Route&& route,
-                                 std::function<std::string const(std::vector<std::string>&&)>&& handler,
+                                 ExecuterSignature&& handler,
                                  std::string&& contentType) {
     this->RegisterRoute(std::move(route),{
         .executor = handler,
@@ -142,7 +185,7 @@ void HtmxHandler::AppendFile (Route&& route,
         throw "File not found";
     }
 
-    const auto handler = [content](std::vector<std::string>&&) -> std::string
+    const auto handler = [content](std::vector<std::string>&&, std::unordered_map<std::string, std::string>) -> std::string
     {
         return content;
     };

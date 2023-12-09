@@ -11,6 +11,8 @@
 
 namespace http = boost::beast::http;
 
+using ExecuterSignature = std::function<std::string const(std::vector<std::string>&&, std::unordered_map<std::string, std::string>)>;
+
 class ServerWebsocktSession;
 class ServerHandler {
     private:
@@ -40,7 +42,7 @@ class HtmxHandler : public ServerHandler
 
     private:
         struct RouteEntry {
-            std::function<std::string const(std::vector<std::string>&&)> executor;
+            ExecuterSignature executor;
             std::string contentType;
             std::optional<std::function<void(http::response<http::string_body>&)>> modifier;
         };
@@ -61,7 +63,7 @@ class HtmxHandler : public ServerHandler
                                         std::function<void(http::response<http::string_body>)>&& sendCallback);
 
         void AppendHandler (Route&& route,
-                            std::function<std::string const(std::vector<std::string>&&)>&& handler,
+                            ExecuterSignature&& handler,
                             std::string&& contentType="text/html");
 
         void AppendFile (Route&& route,

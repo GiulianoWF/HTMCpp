@@ -9,7 +9,7 @@ auto GetLandpage() ->std::string {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Flask HTMX Example</title>
+    <title>Issue tracker</title>
     <link type="text/css" rel="stylesheet" href="style.scss" />
     <link type="text/css" rel="stylesheet" href="issues_table.scss" />
     <!-- Include HTMX library -->

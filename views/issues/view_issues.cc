@@ -16,7 +16,7 @@ std::string GetIssueInputRowComponent()
                 hx-post="/create-issue" 
                 hx-include="closest tr"
                 hx-target="closest tr" 
-                hx-swap="outerHTML swap:0.6s">Create Issue
+                hx-swap="none">Create Issue
         </button>
     </td>
 </tr>

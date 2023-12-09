@@ -26,11 +26,11 @@ namespace Database
     void SaveIssue(std::vector<Issue> const& issues) {
         DatabaseConnection& database = GetDatabase();
         for(Issue const& issue : issues) {
-            database.ExecuteQuery(fmt::format(R"(
+            auto insert = database.ExecuteQuery(fmt::format(R"(
                 INSERT INTO ISSUES(creation_timestamp, issue_id, description, colaborator_id, state) VALUES(
-                {creation_timestamp},
+                '{creation_timestamp}',
                 {issue_id},
-                {description},
+                '{description}',
                 {colaborator_id},
                 {state}))",
 
@@ -39,6 +39,8 @@ namespace Database
             fmt::arg("description", issue.description),
             fmt::arg("colaborator_id", issue.colaborator_id),
             fmt::arg("state", issue.state)));
+
+            insert.LoadRow();
         }
     }
 

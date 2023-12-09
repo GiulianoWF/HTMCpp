@@ -43,6 +43,7 @@ void ServerHttpSession::OnRead(beast::error_code errorCode, std::size_t bytesRea
 
     std::cout << "\n[ServerHttpSession] Reading " << bytesRead << std::endl;
     std::cout << "Method " << this->mRequest.method() << std::endl;
+    std::cout << "Route " << this->mRequest.target() << std::endl;
     for(auto const& it : this->mRequest)
     {
         std::cout << it.name() << " = " << it.value() << std::endl;
